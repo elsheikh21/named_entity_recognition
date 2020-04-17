@@ -6,16 +6,16 @@ import torch
 import logging
 
 
-def configure_workspace(SEED=1873337):
+def configure_workspace(seed):
     """
     Fixes the SEED to maintain reproducibility, configure logging configuration
-    :param SEED: int
+    :param seed: int
     :return: None
     """
-    random.seed(SEED)
-    np.random.seed(SEED)
-    os.environ['PYTHONHASHSEED'] = str(SEED)
-    torch.manual_seed(SEED)
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
     logging.basicConfig(format="%(levelname)s - %(asctime)s: %(message)s",

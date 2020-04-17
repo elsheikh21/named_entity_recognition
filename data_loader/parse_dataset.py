@@ -19,10 +19,12 @@ class DatasetParser(Dataset):
         logging.info('Creating Tags Vocabulary')
         self.tags2idx = {'<PAD>': 0, 'LOC': 1, 'ORG': 2, 'PER': 3, 'O': 4}
         self.idx2tags = {0: '<PAD>', 1: 'LOC', 2: 'ORG', 3: 'PER', 4: 'O'}
-        logging.info(f'Number of tags {len(self.tags2idx) - 1}')
+        self.tags_num = len(self.tags2idx) - 1
+        logging.info(f'Number of tags {self.tags_num}')
         logging.info('Creating Vocabulary')
         self.word2idx, self.idx2word = self.create_vocab()
-        logging.info(f'Vocabulary created with {len(self.word2idx)} unique tokens')
+        self.vocab_size = len(self.word2idx)
+        logging.info(f'Vocabulary created with {self.vocab_size} unique tokens')
 
     @staticmethod
     def parse_dataset(file_path):
@@ -61,7 +63,7 @@ class DatasetParser(Dataset):
         for sentence in self.data_x:
             sentence_ = []
             for word in sentence[0].split():
-                sentence_.append(self.word2idx.get(word, "<UNK>"))
+                sentence_.append(self.word2idx.get(word, 1))
             sentences.append(sentence_)
         return sentences
 
@@ -70,7 +72,7 @@ class DatasetParser(Dataset):
         for label_lst in self.data_y:
             label_ = []
             for label in label_lst:
-                label_.append(self.tags2idx.get(label, "<UNK>"))
+                label_.append(self.tags2idx.get(label, 4))
             labels.append(label_)
         return labels
 
@@ -105,8 +107,8 @@ class DatasetParser(Dataset):
         for item in batch:
             data_x.append(item.get('inputs'))
             data_y.append(item.get('outputs'))
-            seq_tensor, seq_lengths = batch.pad_per_batch(data_x)
-            lbl_tensor, _ = batch.pad_per_batch(data_y)
+            seq_tensor, seq_lengths = pad_per_batch(data_x)
+            lbl_tensor, _ = pad_per_batch(data_y)
             return seq_tensor, lbl_tensor, seq_lengths
 
     @staticmethod
@@ -129,7 +131,7 @@ class DatasetParser(Dataset):
 
 
 if __name__ == '__main__':
-    configure_workspace()
+    configure_workspace(seed=1873337)
     file_path_ = os.path.join(os.getcwd(), 'Data', 'train.tsv')
     is_cuda = 'cuda' if torch.cuda.is_available() else 'cpu'
     dataset = DatasetParser(file_path_, device=is_cuda)

@@ -1,8 +1,11 @@
 class HyperParameters:
-    hidden_dim = 256
-    embedding_dim = 300
-    bidirectional = True
-    num_layers = 2
-    dropout = 0.2
-    embeddings = None
-    batch_size = 128
+    def __init__(self, batch_size, vocab_size, tags_num):
+        self.hidden_dim = 256
+        self.embedding_dim = 300
+        self.bidirectional = True
+        self.num_layers = 2
+        self.dropout = 0.2
+        self.embeddings = None
+        self.batch_size = batch_size
+        self.vocab_size = vocab_size
+        self.num_classes = tags_num
