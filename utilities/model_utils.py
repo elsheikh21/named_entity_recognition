@@ -3,6 +3,7 @@ import numpy as np
 from tqdm.auto import tqdm
 import torch
 from models import BaselineModel
+import matplotlib.pyplot as plt
 
 
 def save_checkpoint(state, is_best, filename='/output/checkpoint.pth.tar'):
@@ -49,3 +50,27 @@ def load_pretrained_embeddings(fname, char2idx, embeddings_size):
     pretrained_embeddings[char2idx["<UNK>"]] = torch.zeros(embeddings_size)
     print(f'Loaded {initialised} vectors and instantiated random embeddings for {len(char2idx) - initialised}')
     return pretrained_embeddings
+
+
+def plot_history(history):
+    loss_list = [s for s in history['loss']]
+    val_loss_list = [s for s in history['val_loss']]
+
+    if len(loss_list) == 0:
+        print('Loss is missing in history')
+        return
+
+    # As loss always exists
+    epochs = [i for i in range(1, len(history['loss']) + 1)]
+
+    # Loss
+    plt.figure(1)
+    plt.plot(epochs, loss_list, 'b', label="Loss")
+    plt.plot(epochs, val_loss_list, 'g', label="Val_Loss")
+
+    plt.title('Training Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig(f'losses_plot.png')
+    plt.show()

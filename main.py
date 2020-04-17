@@ -1,14 +1,17 @@
 import os
 import torch
-from data_loader import DatasetParser
+import torch.nn as nn
+from torch.optim import SGD
 from torch.utils.data import DataLoader
+
+from data_loader import DatasetParser
 from utilities import configure_workspace
 from models import HyperParameters, BaselineModel
+from training import Trainer
+from evaluator import Evaluator
 
 
-def prepare_data():
-    is_cuda = 'cuda' if torch.cuda.is_available() else 'cpu'
-
+def prepare_data(is_cuda):
     file_path_ = os.path.join(os.getcwd(), 'Data', 'train.tsv')
     train_dataset = DatasetParser(file_path_, device=is_cuda)
     train_dataset.vectorize_data()
@@ -33,20 +36,32 @@ def prepare_data():
 
 
 if __name__ == '__main__':
+    is_cuda = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    RESOURCES_PATH = os.path.join(os.getcwd(), 'resources')
     configure_workspace(seed=1873337)
-    train_dataset, dev_dataset, test_dataset = prepare_data()
+    train_dataset, dev_dataset, test_dataset = prepare_data(is_cuda)
 
     batch_size = 128
     hp = HyperParameters(batch_size, train_dataset.vocab_size, train_dataset.tags_num)
 
-    baseline_model = BaselineModel(hp)
+    baseline_model = BaselineModel(hp).to(is_cuda)
     print('\n========== Model Summary ==========')
     print(baseline_model)
 
-    # train_dataset_ = DataLoader(train_dataset, batch=batch_size,
-    #                             shuffle=True, collate_fn=DatasetParser.pad_collate)
-    # dev_dataset_ = DataLoader(dev_dataset, batch_size=batch_size,
-    #                           collate_fn=DatasetParser.pad_collate)
-    # test_dataset_ = DataLoader(test_dataset, batch_size=batch_size,
-    #                           collate_fn=DatasetParser.pad_collate)
-    #
+    train_dataset_ = DataLoader(dataset=train_dataset, batch_size=batch_size,
+                                shuffle=True)
+    dev_dataset_ = DataLoader(dataset=dev_dataset, batch_size=batch_size)
+    test_dataset_ = DataLoader(dataset=test_dataset, batch_size=batch_size)
+
+    trainer = Trainer(
+        model=baseline_model,
+        loss_function=nn.CrossEntropyLoss(ignore_index=train_dataset.tags2idx['<PAD>']),
+        optimizer=SGD(baseline_model.parameters(), lr=1e-6, weight_decay=1e-5, momentum=0.95, nesterov=True),
+        label_vocab=train_dataset.tags2idx
+    )
+
+    save_model_path = os.path.join(RESOURCES_PATH, f'{baseline_model.name}_model.pt')
+    trainer.train(train_dataset_, dev_dataset_, epochs=2, save_to=save_model_path)
+
+    evaluator = Evaluator(baseline_model, dev_dataset_, train_dataset.idx2tags, train_dataset.tags_num)

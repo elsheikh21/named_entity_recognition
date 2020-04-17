@@ -4,6 +4,7 @@ import logging
 import torch
 from torch.utils.data import Dataset
 from torch.autograd import Variable
+
 from tqdm.auto import tqdm
 from utilities import configure_workspace
 
@@ -19,8 +20,8 @@ class DatasetParser(Dataset):
         logging.info('Creating Tags Vocabulary')
         self.tags2idx = {'<PAD>': 0, 'LOC': 1, 'ORG': 2, 'PER': 3, 'O': 4}
         self.idx2tags = {0: '<PAD>', 1: 'LOC', 2: 'ORG', 3: 'PER', 4: 'O'}
-        self.tags_num = len(self.tags2idx) - 1
-        logging.info(f'Number of tags {self.tags_num}')
+        self.tags_num = len(self.tags2idx)
+        logging.info(f'Number of tags {self.tags_num - 1}')
         logging.info('Creating Vocabulary')
         self.word2idx, self.idx2word = self.create_vocab()
         self.vocab_size = len(self.word2idx)
@@ -61,20 +62,31 @@ class DatasetParser(Dataset):
     def index_data_x(self):
         sentences = []
         for sentence in self.data_x:
-            sentence_ = []
+            sentence_, tmp_lst = [], []
             for word in sentence[0].split():
-                sentence_.append(self.word2idx.get(word, 1))
+                tmp_lst.append(self.word2idx.get(word, 1))
+            sentence_.append(self.pad_sentences(tmp_lst))
             sentences.append(sentence_)
+
         return sentences
 
     def index_data_y(self):
         labels = []
         for label_lst in self.data_y:
-            label_ = []
+            label_, tmp_lst = [], []
             for label in label_lst:
-                label_.append(self.tags2idx.get(label, 4))
+                tmp_lst.append(self.tags2idx.get(label, 4))
+            label_.append(self.pad_sentences(tmp_lst))
             labels.append(label_)
         return labels
+
+    def pad_sentences(self, sentence_, max_len=256):
+        if len(sentence_) > max_len:
+            sentence_ = sentence_[:max_len]
+        else:
+            for _ in range(max_len - len(sentence_)):
+                sentence_.append(self.tags2idx.get('<PAD>'))
+        return sentence_
 
     def vectorize_data(self):
         # data_x.shape = [samples_num, max_chars_sentence]
@@ -101,26 +113,6 @@ class DatasetParser(Dataset):
         data_ = data.tolist()
         return [idx2label.get(idx, None) for idx in data_]
 
-    @staticmethod
-    def pad_collate(batch):
-        data_x, data_y = [], []
-        for item in batch:
-            data_x.append(item.get('inputs'))
-            data_y.append(item.get('outputs'))
-            seq_tensor, seq_lengths = pad_per_batch(data_x)
-            lbl_tensor, _ = pad_per_batch(data_y)
-            return seq_tensor, lbl_tensor, seq_lengths
-
-    @staticmethod
-    def pad_per_batch(data_):
-        seq_lengths = torch.LongTensor(list(map(len, data_)))
-        seq_tensor = Variable(torch.zeros((len(data_), seq_lengths.max()))).long()
-        for idx, (seq, seq_len) in enumerate(zip(data_, seq_lengths)):
-            seq_tensor[idx, :seq_len] = torch.LongTensor(seq)
-        seq_lengths, perm_idx = seq_lengths.sort(0, descending=True)
-        seq_tensor = seq_tensor[perm_idx]
-        return seq_tensor.to('cuda'), seq_lengths
-
     def __len__(self):
         return len(self.data_x)
 
@@ -128,6 +120,27 @@ class DatasetParser(Dataset):
         if self.encoded_data is None:
             raise RuntimeError("Trying to retrieve elements, but dataset is not vectorized yet")
         return self.encoded_data[idx]
+
+    @staticmethod
+    def pad_collate(batch):
+        data_x, data_y = [], []
+        for item in batch:
+            data_x.append(item.get('inputs'))
+            data_y.append(item.get('outputs'))
+            seq_lengths = torch.LongTensor(list(map(len, data_x)))
+            seq_tensor = Variable(torch.zeros((len(data_x), seq_lengths.max()))).long()
+            for idx, (seq, seqlen) in enumerate(zip(data_x, seq_lengths)):
+                seq_tensor[idx, :seqlen] = torch.LongTensor(seq)
+            seq_lengths, perm_idx = seq_lengths.sort(0, descending=True)
+            seq_tensor = seq_tensor[perm_idx]
+
+            lbl_length = torch.LongTensor(list(map(len, data_y)))
+            lbl_tensor = Variable(torch.zeros((len(data_y), lbl_length.max()))).long()
+            for idx, (lbl, lbllen) in enumerate(zip(data_y, lbl_length)):
+                lbl_tensor[idx, :lbllen] = torch.LongTensor(lbl)
+            lbl_lengths, perm_idx = lbl_length.sort(0, descending=True)
+            lbl_tensor = lbl_tensor[perm_idx]
+            return seq_tensor.to('cuda'), lbl_tensor.to('cuda'), seq_lengths
 
 
 if __name__ == '__main__':
