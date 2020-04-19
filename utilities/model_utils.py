@@ -1,9 +1,11 @@
 import io
-import numpy as np
-from tqdm.auto import tqdm
-import torch
-from models import BaselineModel
+
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from tqdm.auto import tqdm
+
+from models import BaselineModel
 
 
 def save_checkpoint(state, is_best, filename='/output/checkpoint.pth.tar'):
@@ -26,29 +28,28 @@ def load_checkpoint(resume_weights_path, hyperparams):
     return model
 
 
-def load_pretrained_embeddings(fname, char2idx, embeddings_size):
+def load_pretrained_embeddings(fname, word2idx, embeddings_size, is_crf=False):
     fin = io.open(fname, 'r', encoding='utf-8', newline='\n', errors='ignore')
     n, d = map(int, fin.readline().split())
     data = {}
     for line in tqdm(fin, desc=f'Reading data from {fname}'):
         tokens = line.rstrip().split(' ')
-        # Get only chars in word2idx, char embeddings_vector
-        if len(tokens[0]) == 1:
-            data[tokens[0]] = np.array(tokens[1:], dtype=np.float)
-        else:
-            continue
+        data[tokens[0]] = np.array(tokens[1:], dtype=np.float)
 
-    pretrained_embeddings = torch.randn(len(char2idx), embeddings_size)
+    pretrained_embeddings = torch.randn(len(word2idx), embeddings_size)
     initialised = 0
-    for idx, char in enumerate(data):
-        if char in char2idx:
+    for idx, word in enumerate(data):
+        if word in word2idx:
             initialised += 1
-            vector_ = torch.from_numpy(data[char])
-            pretrained_embeddings[char2idx.get(char)] = vector_
+            vector_ = torch.from_numpy(data[word])
+            pretrained_embeddings[word2idx.get(word)] = vector_
 
-    pretrained_embeddings[char2idx["<PAD>"]] = torch.zeros(embeddings_size)
-    pretrained_embeddings[char2idx["<UNK>"]] = torch.zeros(embeddings_size)
-    print(f'Loaded {initialised} vectors and instantiated random embeddings for {len(char2idx) - initialised}')
+    pretrained_embeddings[word2idx["<PAD>"]] = torch.zeros(embeddings_size)
+    pretrained_embeddings[word2idx["<UNK>"]] = torch.zeros(embeddings_size)
+    if is_crf:
+        pretrained_embeddings[word2idx["<BOS>"]] = torch.zeros(embeddings_size)
+        pretrained_embeddings[word2idx["<EOS>"]] = torch.zeros(embeddings_size)
+    print(f'Loaded {initialised} vectors and instantiated random embeddings for {len(word2idx) - initialised}')
     return pretrained_embeddings
 
 
@@ -65,12 +66,11 @@ def plot_history(history):
 
     # Loss
     plt.figure(1)
-    plt.plot(epochs, loss_list, 'b', label="Loss")
-    plt.plot(epochs, val_loss_list, 'g', label="Val_Loss")
+    plt.plot(epochs, loss_list, label="loss")
+    plt.plot(epochs, val_loss_list, label="val_loss")
 
     plt.title('Training Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
-    plt.savefig(f'losses_plot.png')
     plt.show()

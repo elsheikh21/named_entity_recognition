@@ -1,1 +1,1 @@
-from data_loader.parse_dataset import DatasetParser
+from data_loader.parse_dataset import TSVDatasetParser

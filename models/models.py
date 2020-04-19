@@ -1,7 +1,4 @@
-import torch
 import torch.nn as nn
-
-from torch.nn.utils.rnn import pack_padded_sequence
 
 
 class BaselineModel(nn.Module):
@@ -17,17 +14,19 @@ class BaselineModel(nn.Module):
                             bidirectional=hparams.bidirectional,
                             num_layers=hparams.num_layers,
                             dropout=hparams.dropout if hparams.num_layers > 1 else 0)
-        lstm_output_dim = hparams.hidden_dim if hparams.bidirectional is False else hparams.hidden_dim * 2
 
+        lstm_output_dim = hparams.hidden_dim if hparams.bidirectional is False else hparams.hidden_dim * 2
         self.dropout = nn.Dropout(hparams.dropout)
         self.classifier = nn.Linear(lstm_output_dim, hparams.num_classes)
 
     def forward(self, x):
+        # [Samples_Num, Seq_Len]
         embeddings = self.word_embedding(x)
-        embeddings = self.dropout(embeddings)
-        # packed_input = pack_padded_sequence(embeddings, x_lengths.cpu().numpy(),
-        #                                     batch_first=True)
+        # [Samples_Num, Seq_Len]
         o, _ = self.lstm(embeddings)
+        # [Samples_Num, Seq_Len, Tags_Num]
         o = self.dropout(o)
+        # [Samples_Num, Seq_Len, Tags_Num]
         logits = self.classifier(o)
+        # [Samples_Num, Seq_Len]
         return logits
