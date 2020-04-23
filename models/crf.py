@@ -4,22 +4,16 @@ from torch import nn
 
 class CRF(nn.Module):
     """
-    Linear-chain Conditional Random Field (CRF).
-
-    Args:
-        nb_labels (int): number of labels in your tagset, including special symbols.
-        bos_tag_id (int): integer representing the beginning of sentence symbol in
-            your tagset.
-        eos_tag_id (int): integer representing the end of sentence symbol in your tagset.
-        pad_tag_id (int, optional): integer representing the pad symbol in your tagset.
-            If None, the model will treat the PAD as a normal tag. Otherwise, the model
-            will apply constraints for PAD transitions.
-        batch_first (bool): Whether the first dimension represents the batch dimension.
+    Code Source:
+    1. https://towardsdatascience.com/implementing-a-linear-chain-conditional-random-field-crf-in-pytorch-16b0b9c4b4ea
+    2. https://github.com/mtreviso/linear-chain-crf
     """
 
-    def __init__(self, nb_labels, bos_tag_id, eos_tag_id, pad_tag_id=None, batch_first=True):
+    def __init__(
+        self, nb_labels, bos_tag_id, eos_tag_id, pad_tag_id=None, batch_first=True
+    ):
         super().__init__()
-
+        self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.nb_labels = nb_labels
         self.BOS_TAG_ID = bos_tag_id
         self.EOS_TAG_ID = eos_tag_id
@@ -59,7 +53,6 @@ class CRF(nn.Module):
     def log_likelihood(self, emissions, tags, mask=None):
         """Compute the probability of a sequence of tags given a sequence of
         emissions scores.
-
         Args:
             emissions (torch.Tensor): Sequence of emissions for each label.
                 Shape of (batch_size, seq_len, nb_labels) if batch_first is True,
@@ -71,7 +64,6 @@ class CRF(nn.Module):
                 If None, all positions are considered valid.
                 Shape of (batch_size, seq_len) if batch_first is True,
                 (seq_len, batch_size) otherwise.
-
         Returns:
             torch.Tensor: the log-likelihoods for each sequence in the batch.
                 Shape of (batch_size,)
@@ -92,7 +84,6 @@ class CRF(nn.Module):
     def decode(self, emissions, mask=None):
         """Find the most probable sequence of labels given the emissions using
         the Viterbi algorithm.
-
         Args:
             emissions (torch.Tensor): Sequence of emissions for each label.
                 Shape (batch_size, seq_len, nb_labels) if batch_first is True,
@@ -101,7 +92,6 @@ class CRF(nn.Module):
                 If None, all positions are considered valid.
                 Shape (batch_size, seq_len) if batch_first is True,
                 (seq_len, batch_size) otherwise.
-
         Returns:
             torch.Tensor: the viterbi score for the for each batch.
                 Shape of (batch_size,)
@@ -115,18 +105,16 @@ class CRF(nn.Module):
 
     def _compute_scores(self, emissions, tags, mask):
         """Compute the scores for a given batch of emissions with their tags.
-
         Args:
             emissions (torch.Tensor): (batch_size, seq_len, nb_labels)
             tags (Torch.LongTensor): (batch_size, seq_len)
             mask (Torch.FloatTensor): (batch_size, seq_len)
-
         Returns:
             torch.Tensor: Scores for each batch.
                 Shape of (batch_size,)
         """
         batch_size, seq_length = tags.shape
-        scores = torch.zeros(batch_size)
+        scores = torch.zeros(batch_size).to(self._device)
 
         # save first and last tags to be used later
         first_tags = tags[:, 0]
@@ -143,10 +131,11 @@ class CRF(nn.Module):
         e_scores = emissions[:, 0].gather(1, first_tags.unsqueeze(1)).squeeze()
 
         # the scores for a word is just the sum of both scores
-        scores += e_scores + t_scores
+        scores += e_scores.to(self._device) + t_scores.to(self._device)
 
         # now lets do this for each remaining word
         for i in range(1, seq_length):
+
             # we could: iterate over batches, check if we reached a mask symbol
             # and stop the iteration, but vecotrizing is faster due to gpu,
             # so instead we perform an element-wise multiplication
@@ -172,11 +161,9 @@ class CRF(nn.Module):
 
     def _compute_log_partition(self, emissions, mask):
         """Compute the partition function in log-space using the forward-algorithm.
-
         Args:
             emissions (torch.Tensor): (batch_size, seq_len, nb_labels)
             mask (Torch.FloatTensor): (batch_size, seq_len)
-
         Returns:
             torch.Tensor: the partition scores for each batch.
                 Shape of (batch_size,)
@@ -187,35 +174,17 @@ class CRF(nn.Module):
         alphas = self.transitions[self.BOS_TAG_ID, :].unsqueeze(0) + emissions[:, 0]
 
         for i in range(1, seq_length):
-            alpha_t = []
+            # (bs, nb_labels) -> (bs, 1, nb_labels)
+            e_scores = emissions[:, i].unsqueeze(1)
 
-            for tag in range(nb_labels):
-                # get the emission for the current tag
-                e_scores = emissions[:, i, tag]
+            # (nb_labels, nb_labels) -> (bs, nb_labels, nb_labels)
+            t_scores = self.transitions.unsqueeze(0)
 
-                # broadcast emission to all labels
-                # since it will be the same for all previous tags
-                # (bs, nb_labels)
-                e_scores = e_scores.unsqueeze(1)
+            # (bs, nb_labels)  -> (bs, nb_labels, 1)
+            a_scores = alphas.unsqueeze(2)
 
-                # transitions from something to our tag
-                t_scores = self.transitions[:, tag]
-
-                # broadcast the transition scores to all batches
-                # (bs, nb_labels)
-                t_scores = t_scores.unsqueeze(0)
-
-                # combine current scores with previous alphas
-                # since alphas are in log space (see logsumexp below),
-                # we add them instead of multiplying
-                scores = e_scores + t_scores + alphas
-
-                # add the new alphas for the current tag
-                alpha_t.append(torch.logsumexp(scores, dim=1))
-
-            # create a torch matrix from alpha_t
-            # (bs, nb_labels)
-            new_alphas = torch.stack(alpha_t).t()
+            scores = e_scores + t_scores + a_scores
+            new_alphas = torch.logsumexp(scores, dim=1)
 
             # set alphas if the mask is valid, otherwise keep the current values
             is_valid = mask[:, i].unsqueeze(-1)
@@ -231,11 +200,9 @@ class CRF(nn.Module):
     def _viterbi_decode(self, emissions, mask):
         """Compute the viterbi algorithm to find the most probable sequence of labels
         given a sequence of emissions.
-
         Args:
             emissions (torch.Tensor): (batch_size, seq_len, nb_labels)
             mask (Torch.FloatTensor): (batch_size, seq_len)
-
         Returns:
             torch.Tensor: the viterbi score for the for each batch.
                 Shape of (batch_size,)
@@ -249,42 +216,31 @@ class CRF(nn.Module):
         backpointers = []
 
         for i in range(1, seq_length):
-            alpha_t = []
-            backpointers_t = []
+            # (bs, nb_labels) -> (bs, 1, nb_labels)
+            e_scores = emissions[:, i].unsqueeze(1)
 
-            for tag in range(nb_labels):
-                # get the emission for the current tag and broadcast to all labels
-                e_scores = emissions[:, i, tag]
-                e_scores = e_scores.unsqueeze(1)
+            # (nb_labels, nb_labels) -> (bs, nb_labels, nb_labels)
+            t_scores = self.transitions.unsqueeze(0)
 
-                # transitions from something to our tag and broadcast to all batches
-                t_scores = self.transitions[:, tag]
-                t_scores = t_scores.unsqueeze(0)
+            # (bs, nb_labels)  -> (bs, nb_labels, 1)
+            a_scores = alphas.unsqueeze(2)
 
-                # combine current scores with previous alphas
-                scores = e_scores + t_scores + alphas
+            # combine current scores with previous alphas
+            scores = e_scores + t_scores + a_scores
 
-                # so far is exactly like the forward algorithm,
-                # but now, instead of calculating the logsumexp,
-                # we will find the highest score and the tag associated with it
-                max_score, max_score_tag = torch.max(scores, dim=-1)
-
-                # add the max score for the current tag
-                alpha_t.append(max_score)
-
-                # add the max_score_tag for our list of backpointers
-                backpointers_t.append(max_score_tag)
-
-            # create a torch matrix from alpha_t
-            # (bs, nb_labels)
-            new_alphas = torch.stack(alpha_t).t()
+            # so far is exactly like the forward algorithm,
+            # but now, instead of calculating the logsumexp,
+            # we will find the highest score and the tag associated with it
+            max_scores, max_score_tags = torch.max(scores, dim=1)
 
             # set alphas if the mask is valid, otherwise keep the current values
             is_valid = mask[:, i].unsqueeze(-1)
-            alphas = is_valid * new_alphas + (1 - is_valid) * alphas
+            alphas = (is_valid * max_scores + (1 - is_valid) * alphas).to(self._device)
 
-            # append the new backpointers
-            backpointers.append(backpointers_t)
+            # add the max_score_tags for our list of backpointers
+            # max_scores has shape (batch_size, nb_labels) so we transpose it to
+            # be compatible with our previous loopy version of viterbi
+            backpointers.append(max_score_tags.t())
 
         # add the scores for the final transition
         last_transition = self.transitions[:, self.EOS_TAG_ID]
@@ -297,6 +253,7 @@ class CRF(nn.Module):
         best_sequences = []
         emission_lengths = mask.int().sum(dim=1)
         for i in range(batch_size):
+
             # recover the original sentence length for the i-th sample in the batch
             sample_length = emission_lengths[i].item()
 
@@ -317,14 +274,12 @@ class CRF(nn.Module):
 
     def _find_best_path(self, sample_id, best_tag, backpointers):
         """Auxiliary function to find the best path sequence for a specific sample.
-
             Args:
                 sample_id (int): sample index in the range [0, batch_size)
                 best_tag (int): tag which maximizes the final score
                 backpointers (list of lists of tensors): list of pointers with
                 shape (seq_len_i-1, nb_labels, batch_size) where seq_len_i
                 represents the length of the ith sample in the batch
-
             Returns:
                 list of ints: a list of tag indexes representing the bast path
         """
@@ -334,6 +289,7 @@ class CRF(nn.Module):
 
         # traverse the backpointers in backwards
         for backpointers_t in reversed(backpointers):
+
             # recover the best_tag at this timestep
             best_tag = backpointers_t[best_tag][sample_id].item()
 

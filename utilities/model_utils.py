@@ -28,11 +28,11 @@ def load_checkpoint(resume_weights_path, hyperparams):
     return model
 
 
-def load_pretrained_embeddings(fname, word2idx, embeddings_size, is_crf=False):
-    fin = io.open(fname, 'r', encoding='utf-8', newline='\n', errors='ignore')
+def load_pretrained_embeddings(file_name, word2idx, embeddings_size, is_crf=False):
+    fin = io.open(file_name, 'r', encoding='utf-8', newline='\n', errors='ignore')
     n, d = map(int, fin.readline().split())
     data = {}
-    for line in tqdm(fin, desc=f'Reading data from {fname}'):
+    for line in tqdm(fin, desc=f'Reading data from {file_name}'):
         tokens = line.rstrip().split(' ')
         data[tokens[0]] = np.array(tokens[1:], dtype=np.float)
 
@@ -73,4 +73,5 @@ def plot_history(history):
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
+    plt.savefig(os.path.join(os.getcwd(), 'resources', 'loss_plot.png'))
     plt.show()

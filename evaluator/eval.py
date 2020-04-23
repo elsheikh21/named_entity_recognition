@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sn
@@ -51,6 +52,8 @@ class Evaluator:
         plt.figure(figsize=(10, 7))
         sn.set(font_scale=1.4)  # for label size
         sn.heatmap(df_cm, annot=True, annot_kws={"size": 16})  # font size
+        save_to = os.path.join(os.getcwd(), "resources", f"{self.model.name}_confusion_matrix.png")
+        plt.savefig(save_to)
         plt.show()
 
     def check_performance(self):

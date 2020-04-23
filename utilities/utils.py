@@ -32,3 +32,8 @@ def save_pickle(save_to, save_what):
 def load_pickle(load_from):
     with open(load_from, 'rb') as f:
         return pickle.load(f)
+
+
+def ensure_dir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
