@@ -2,60 +2,50 @@ import numpy as np
 
 
 class EarlyStopping(object):
-    def __init__(self,
-                 min_delta=0,
-                 patience=10,
-                 verbose=1,
-                 mode='min',
-                 monitor='loss',
-                 logger = None,
-                 baseline=None):
-        '''
-        # Arguments
-            min_delta: 最小变化
-            patience: 多少个epoch未提高，就停止训练
-            verbose: 信息大于，默认打印信息
-            mode: 计算模式
-            monitor: 计算指标
-            baseline: 基线
-        '''
-        self.baseline = baseline
-        self.patience = patience
-        self.verbose = verbose
+    def __init__(self, mode='min', min_delta=0, patience=10, percentage=False):
+        self.mode = mode
         self.min_delta = min_delta
-        self.monitor = monitor
-        self.logger = logger
+        self.patience = patience
+        self.best = None
+        self.num_bad_epochs = 0
+        self.is_better = None
+        self._init_is_better(mode, min_delta, percentage)
 
-        assert mode in ['min','max'],"mode == 'min' or mode == 'max'"
-        self.use = 'on_epoch_end'
+        if patience == 0:
+            self.is_better = lambda a, b: True
+            self.step = lambda a: False
 
-        if mode == 'min':
-            self.monitor_op = np.less
-        elif mode == 'max':
-            self.monitor_op = np.greater
+    def step(self, metrics):
+        if self.best is None:
+            self.best = metrics
+            return False
 
-        if self.monitor_op == np.greater:
-            self.min_delta *= 1
+        if np.isnan(metrics):
+            return True
+
+        if self.is_better(metrics, self.best):
+            self.num_bad_epochs = 0
+            self.best = metrics
         else:
-            self.min_delta *= -1
-        self._reset()
+            self.num_bad_epochs += 1
 
-    def _reset(self):
-        # Allow instances to be re-used
-        self.wait = 0
-        self.stop_training = False
-        if self.baseline is not None:
-            self.best = self.baseline
-        else:
-            self.best = np.Inf if self.monitor_op == np.less else -np.Inf
+        if self.num_bad_epochs >= self.patience:
+            return True
 
-    def step(self,current,epoch):
-        if self.monitor_op(current - self.min_delta, self.best):
-            self.best = current
-            self.wait = 0
+        return False
+
+    def _init_is_better(self, mode, min_delta, percentage):
+        if mode not in {'min', 'max'}:
+            raise ValueError('mode ' + mode + ' is unknown!')
+        if not percentage:
+            if mode == 'min':
+                self.is_better = lambda a, best: a < best - min_delta
+            if mode == 'max':
+                self.is_better = lambda a, best: a > best + min_delta
         else:
-            self.wait += 1
-            if self.wait >= self.patience:
-                if self.verbose >0:
-                    self.logger.info("{patience} epochs with no improvement after which training will be stopped".format(patience = self.patience))
-                self.stop_training = True
+            if mode == 'min':
+                self.is_better = lambda a, best: a < best - (
+                    best * min_delta / 100)
+            if mode == 'max':
+                self.is_better = lambda a, best: a > best + (
+                    best * min_delta / 100)

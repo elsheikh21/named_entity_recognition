@@ -1,8 +1,9 @@
 import io
-
-import matplotlib.pyplot as plt
-import numpy as np
+import os
 import torch
+from torch.nn.modules.module import _addindent
+import numpy as np
+import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 
 from models import BaselineModel
@@ -30,7 +31,6 @@ def load_checkpoint(resume_weights_path, hyperparams):
 
 def load_pretrained_embeddings(file_name, word2idx, embeddings_size, is_crf=False):
     fin = io.open(file_name, 'r', encoding='utf-8', newline='\n', errors='ignore')
-    n, d = map(int, fin.readline().split())
     data = {}
     for line in tqdm(fin, desc=f'Reading data from {file_name}'):
         tokens = line.rstrip().split(' ')
@@ -75,3 +75,31 @@ def plot_history(history):
     plt.legend()
     plt.savefig(os.path.join(os.getcwd(), 'resources', 'loss_plot.png'))
     plt.show()
+
+
+def torch_summarize(model, show_weights=True, show_parameters=True):
+    """Summarizes torch model by showing trainable parameters and weights."""
+    tmpstr = model.__class__.__name__ + ' (\n'
+    for key, module in model._modules.items():
+        # if it contains layers let call it recursively to get params and weights
+        if type(module) in [
+            torch.nn.modules.container.Container,
+            torch.nn.modules.container.Sequential
+        ]:
+            modstr = torch_summarize(module)
+        else:
+            modstr = module.__repr__()
+        modstr = _addindent(modstr, 2)
+
+        params = sum([np.prod(p.size()) for p in module.parameters()])
+        weights = tuple([tuple(p.size()) for p in module.parameters()])
+
+        tmpstr += '  (' + key + '): ' + modstr
+        if show_weights:
+            tmpstr += ', weights={}'.format(weights)
+        if show_parameters:
+            tmpstr +=  ', parameters={}'.format(params)
+        tmpstr += '\n'
+
+    tmpstr = tmpstr + ')'
+    return tmpstr

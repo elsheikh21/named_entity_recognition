@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torchcrf import CRF
+from tqdm.auto import tqdm
 
 
 class BaselineModel(nn.Module):
@@ -33,6 +34,17 @@ class BaselineModel(nn.Module):
         logits = self.classifier(o)
         # [Samples_Num, Seq_Len]
         return logits
+
+    def predict_sentences(self, test_dataset):
+        preds = []
+        for _, sample in tqdm(enumerate(test_dataset)):
+            inputs, labels = sample['inputs'], sample['outputs']
+            logits = self(inputs)
+            predictions = torch.argmax(logits, -1).view(-1)
+            valid_indices = predictions != 0
+            predictions_ = predictions[valid_indices]
+            preds.append(predictions_)
+        return preds
 
 
 class CRF_Model(nn.Module):
@@ -84,3 +96,15 @@ class CRF_Model(nn.Module):
     def load_model(self, path):
         state_dict = torch.load(path)
         self.load_state_dict(state_dict)
+
+    def predict_sentences(self, test_dataset):
+        predictions_lst = []
+        for _, sample in tqdm(enumerate(test_dataset)):
+            inputs, labels = sample['inputs'], sample['outputs']
+            logits = self.predict(inputs)
+            logits = torch.LongTensor(logits).to('cuda').view(-1)
+            predictions = torch.argmax(logits, -1).view(-1)
+            valid_indices = predictions != 0
+            predictions_ = predictions[valid_indices]
+            predictions_lst.append(predictions_)
+        return predictions_lst

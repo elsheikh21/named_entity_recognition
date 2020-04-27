@@ -47,7 +47,7 @@ if __name__ == '__main__':
                                                        train_dataset.word2idx,
                                                        300, is_crf=crf_model)
 
-    name_ = 'LSTM_CRF' if crf_model else 'LSTM'
+    name_ = 'LSTM'
     hp = HyperParameters(name_, train_dataset.word2idx,
                          train_dataset.labels2idx,
                          pretrained_embeddings,
@@ -58,25 +58,18 @@ if __name__ == '__main__':
     dev_dataset_ = DataLoader(dataset=dev_dataset, batch_size=batch_size)
     test_dataset_ = DataLoader(dataset=test_dataset, batch_size=batch_size)
 
-    if not crf_model:
-        model = BaselineModel(hp).to(train_dataset.get_device)
-        trainer = Trainer(
-            model=model,
-            loss_function=CrossEntropyLoss(ignore_index=train_dataset.labels2idx['<PAD>']),
-            optimizer=Adam(model.parameters()),
-            batch_num=hp.batch_size,
-            num_classes=hp.num_classes,
-            verbose=True
-        )
+    model = BaselineModel(hp).to(train_dataset.get_device)
+    trainer = Trainer(
+        model=model,
+        loss_function=CrossEntropyLoss(ignore_index=train_dataset.labels2idx['<PAD>']),
+        optimizer=Adam(model.parameters()),
+        batch_num=hp.batch_size,
+        num_classes=hp.num_classes,
+        verbose=True
+    )
 
-        save_to_ = join(RESOURCES_PATH, f"{model.name}_model.pt")
-        trainer.train(train_dataset_, dev_dataset_, epochs=1, save_to=save_to_)
-    else:
-        model = BiLSTM_CRF(hp).to(train_dataset.get_device)
-        print(f'==========Model Summary ==========\n{model}')
-        opt = SGD(model.parameters(), lr=1e-4, nesterov=True, momentum=0.9)
-        model.train_(optimizer=opt, epochs=1, train_dataset=train_dataset_)
-        model.save_(join(RESOURCES_PATH, f"{model.name}_model.pt"))
+    save_to_ = join(RESOURCES_PATH, f"{model.name}_model.pt")
+    trainer.train(train_dataset_, dev_dataset_, epochs=1, save_to=save_to_)
 
     evaluator = Evaluator(model, test_dataset_, train_dataset.idx2label)
     evaluator.check_performance()

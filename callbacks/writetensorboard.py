@@ -15,7 +15,9 @@ class WriterTensorboardX():
             except ModuleNotFoundError:
                 message = """TensorboardX visualization is configured to use, but currently not installed on this machine. Please install the package by 'pip install tensorboardx' command or turn off the option in the 'configs.json' file."""
                 warnings.warn(message, UserWarning)
-                logger.warn()
+                logger.warn(message)
+                os.system('pip install tensorboardX')
+                self.writer = importlib.import_module('tensorboardX').SummaryWriter(log_path)
         self.step = 0
         self.mode = ''
 

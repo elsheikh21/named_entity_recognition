@@ -1,8 +1,8 @@
+import logging
 from torch.nn import CrossEntropyLoss
-from torch.optim import Adam, SGD
-from torch.utils.data import DataLoader
-
-from utilities import configure_workspace, load_pretrained_embeddings
+from torch.optim import Adam
+from callbacks import WriterTensorboardX
+from utilities import configure_workspace, load_pretrained_embeddings, torch_summarize, ensure_dir
 from data_loader import TSVDatasetParser
 from models import HyperParameters, BaselineModel, CRF_Model
 from evaluator import Evaluator
@@ -43,9 +43,9 @@ if __name__ == '__main__':
     pretrained_embeddings = None
 
     embeddings_path = join(RESOURCES_PATH, 'wiki.en.vec')
-    # pretrained_embeddings = load_pretrained_embeddings(embeddings_path,
-    #                                                    train_dataset.word2idx,
-    #                                                    300, is_crf=crf_model)
+    pretrained_embeddings = load_pretrained_embeddings(embeddings_path,
+                                                       train_dataset.word2idx,
+                                                       300, is_crf=crf_model)
 
     name_ = 'LSTM_CRF' if crf_model else 'LSTM'
     hp = HyperParameters(name_, train_dataset.word2idx,
@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     if not crf_model:
         model = BaselineModel(hp).to(train_dataset.get_device)
-        print(f'\n========== Model Summary ==========\n{model}')
+        print(f'\n========== Model Summary ==========\n{torch_summarize(model)}')
 
         trainer = Trainer(
             model=model,
@@ -74,13 +74,19 @@ if __name__ == '__main__':
         trainer.train(train_dataset_, dev_dataset_, epochs=1, save_to=save_to_)
     else:
         model = CRF_Model(hp).to(train_dataset.get_device)
-        print(f'========== CRF Model Summary ==========\n{model}')
+        print(f'========== CRF Model Summary ==========\n{torch_summarize(model)}')
+        model_num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"Num of Parameters:  {model_num_params:6d}")
 
+        tensorboard_path = join(getcwd(), 'runs')
+        ensure_dir(tensorboard_path)
+        tensorboard_writer = WriterTensorboardX(tensorboard_path, logger=logging, enable=True)
         trainer = CRF_Trainer(
             model=model,
             loss_function=CrossEntropyLoss(ignore_index=train_dataset.labels2idx['<PAD>']),
-            optimizer=SGD(model.parameters(), lr=1e-4, nesterov=True, momentum=0.9),
-            label_vocab=train_dataset.labels2idx
+            optimizer=Adam(model.parameters()),
+            label_vocab=train_dataset.labels2idx,
+            writer=tensorboard_writer
         )
         trainer.train(train_dataset_, dev_dataset_, epochs=1)
         model.save_(join(RESOURCES_PATH, f"{model.name}_model.pt"))

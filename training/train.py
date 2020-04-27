@@ -1,10 +1,10 @@
 import time
-import numpy as np
 
 import torch
 from sklearn.metrics import f1_score
 from torch.nn.utils import clip_grad_norm_
 from tqdm.auto import tqdm
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from callbacks import ProgressBar
 from training.earlystopping import EarlyStopping
@@ -106,35 +106,51 @@ class Trainer:
             return logits, predictions
 
 
-class CRF_Trainer:
-    def __init__(self, model, loss_function, optimizer, label_vocab):
+class CRF_Trainer(object):
+    def __init__(self, model, loss_function, optimizer, label_vocab, writer):
         self.model = model
         self.loss_function = loss_function
         self.optimizer = optimizer
         self.label_vocab = label_vocab
         self.label_vocab = label_vocab
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.writer = writer
 
     def train(self, train_dataset, valid_dataset, epochs=1):
+        es = EarlyStopping(patience=10)
+        scheduler = ReduceLROnPlateau(self.optimizer, patience=3, verbose=True)
         train_loss = 0.0
         epoch, step = 0, 0
         for epoch in tqdm(range(epochs), desc=f'Training Epoch # {epoch + 1} / {epochs}'):
             epoch_loss = 0.0
             self.model.train()
-            for step, sample in enumerate(train_dataset):
+            for step, sample in tqdm(enumerate(train_dataset), desc=f'Train on batch # {step + 1}'):
                 inputs, labels = sample['inputs'], sample['outputs']
                 mask = (inputs != 0).to(self._device, dtype=torch.uint8)
                 self.optimizer.zero_grad()
                 # Pass the inputs directly, log_probabilities already calls forward
-                sample_loss = -self.model.log_probs(inputs, labels, mask).sum()
+                sample_loss = -self.model.log_probs(inputs, labels, mask)
                 sample_loss.backward()
-                epoch_loss += sample_loss.tolist()
+                clip_grad_norm_(self.model.parameters(), 5.)  # Gradient Clipping
                 self.optimizer.step()
+                epoch_loss += sample_loss.tolist()
 
             avg_epoch_loss = epoch_loss / len(train_dataset)
             train_loss += avg_epoch_loss
             valid_loss, valid_acc = self.evaluate(valid_dataset)
-            print(f"Epoch #: {epoch} [loss: {avg_epoch_loss:0.4f}, val_loss: {valid_loss:0.4f}")
+            scheduler.step(valid_loss)
+            epoch_summary = f'Epoch #: {epoch + 1} [loss: {avg_epoch_loss:0.4f}, val_loss: {valid_loss:0.4f}]'
+            print(epoch_summary)
+
+            if self.writer:
+                self.writer.set_step(epoch, 'train')
+                self.writer.add_scalar('loss', epoch_loss)
+                self.writer.set_step(epoch, 'valid')
+                self.writer.add_scalar('val_loss', valid_loss)
+
+            if es.step(valid_loss):
+                print(f"Early Stopping activated on epoch #: {epoch}")
+                break
 
         avg_epoch_loss = train_loss / epochs
         return avg_epoch_loss
