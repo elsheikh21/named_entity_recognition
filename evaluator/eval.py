@@ -10,11 +10,14 @@ from tqdm.auto import tqdm
 
 
 class Evaluator:
-    def __init__(self, model, test_dataset, idx2label, is_crf):
+    def __init__(self, model, test_dataset, is_crf):
         self.model = model
         self.test_dataset = test_dataset
-        self.idx2label = idx2label
         self.is_crf = is_crf
+        self.micro_scores = None
+        self.macro_scores = None
+        self.class_scores = None
+        self.confusion_matrix = None
 
     def compute_scores(self):
         all_predictions = list()
@@ -34,29 +37,18 @@ class Evaluator:
             all_predictions.extend(valid_predictions.tolist())
             all_labels.extend(valid_labels.tolist())
         # global precision. Does take class imbalance into account.
-        micro_precision_recall_f1score = precision_recall_fscore_support(all_labels, all_predictions,
-                                                                         labels=list(range(len(self.idx2label))),
-                                                                         average="micro")
+        self.micro_scores = precision_recall_fscore_support(all_labels, all_predictions,
+                                                            average="micro")
 
         # precision per class and arithmetic average of them. Does not take into account class imbalance.
-        macro_precision_recall_f1score = precision_recall_fscore_support(all_labels, all_predictions,
-                                                                         labels=list(range(len(self.idx2label))),
-                                                                         average="macro")
+        self.macro_scores = precision_recall_fscore_support(all_labels, all_predictions,
+                                                            average="macro")
 
-        per_class_precision = precision_score(all_labels, all_predictions,
-                                              labels=list(range(len(self.idx2label))),
-                                              average=None)
+        self.class_scores = precision_score(all_labels, all_predictions,
+                                            average=None)
 
-        confusion_mat = confusion_matrix(all_labels, all_predictions,
-                                         labels=list(range(len(self.idx2label))),
-                                         normalize='true')
-
-        scores_dict = {"macro_precision_recall_f1score": macro_precision_recall_f1score,
-                       "micro_precision_recall_f1score": micro_precision_recall_f1score,
-                       "per_class_precision": per_class_precision,
-                       "confusion_matrix": confusion_mat}
-
-        return scores_dict
+        self.confusion_matrix = confusion_matrix(all_labels, all_predictions,
+                                                 normalize='true')
 
     def pprint_confusion_matrix(self, conf_matrix):
         df_cm = pd.DataFrame(conf_matrix)
@@ -67,24 +59,25 @@ class Evaluator:
         plt.savefig(save_to)
         plt.show()
 
-    def check_performance(self):
-        scores = self.compute_scores()
-        per_class_precision = scores["per_class_precision"]
-        precision_, recall_, f1score_, _ = scores['macro_precision_recall_f1score']
+    def check_performance(self, idx2label):
+        self.compute_scores()
+        precision_, recall_, f1score_, _ = self.macro_scores
+        print("=" * 30)
         print(f"Macro Precision: {precision_}")
         print(f"Macro Recall: {recall_}")
         print(f"Macro F1_Score: {f1score_}")
 
+        print("=" * 30)
         print("Per class Precision:")
-        for idx_class, precision in sorted(enumerate(per_class_precision), key=lambda elem: -elem[1]):
-            label = self.idx2label[idx_class]
+        for idx_class, precision in sorted(enumerate(self.class_scores, start=1), key=lambda elem: -elem[1]):
+            label = idx2label[idx_class]
             print(f'{label}: {precision}')
 
-        precision, recall, f1score, _ = scores['micro_precision_recall_f1score']
+        print("=" * 30)
+        precision, recall, f1score, _ = self.micro_scores
         print(f"Micro Precision: {precision}")
         print(f"Micro Recall: {recall}")
         print(f"Micro F1_Score: {f1score}")
+        print("=" * 30)
 
-        confusion_matrix_ = scores['confusion_matrix']
-        print(f'Confusion Matrix:\n {confusion_matrix_}')
-        self.pprint_confusion_matrix(confusion_matrix_)
+        self.pprint_confusion_matrix(self.confusion_matrix)

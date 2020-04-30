@@ -3,11 +3,12 @@ import time
 import torch
 from sklearn.metrics import f1_score
 from torch.nn.utils import clip_grad_norm_
-from tqdm.auto import tqdm
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from tqdm.auto import tqdm
 
 from callbacks import ProgressBar
 from training.earlystopping import EarlyStopping
+
 try:
     from torchcrf import CRF
 except ModuleNotFoundError:
@@ -106,7 +107,7 @@ class Trainer:
             return logits, predictions
 
 
-class CRF_Trainer(object):
+class CRF_Trainer:
     def __init__(self, model, loss_function, optimizer, label_vocab, writer):
         self.model = model
         self.loss_function = loss_function
@@ -118,7 +119,7 @@ class CRF_Trainer(object):
 
     def train(self, train_dataset, valid_dataset, epochs=1):
         es = EarlyStopping(patience=10)
-        scheduler = ReduceLROnPlateau(self.optimizer, patience=3, verbose=True)
+        scheduler = ReduceLROnPlateau(self.optimizer, 'min', patience=2)
         train_loss = 0.0
         epoch, step = 0, 0
         for epoch in tqdm(range(epochs), desc=f'Training Epoch # {epoch + 1} / {epochs}'):
@@ -138,7 +139,6 @@ class CRF_Trainer(object):
             avg_epoch_loss = epoch_loss / len(train_dataset)
             train_loss += avg_epoch_loss
             valid_loss, valid_acc = self.evaluate(valid_dataset)
-            scheduler.step(valid_loss)
             epoch_summary = f'Epoch #: {epoch + 1} [loss: {avg_epoch_loss:0.4f}, val_loss: {valid_loss:0.4f}]'
             print(epoch_summary)
 
@@ -148,6 +148,7 @@ class CRF_Trainer(object):
                 self.writer.set_step(epoch, 'valid')
                 self.writer.add_scalar('val_loss', valid_loss)
 
+            scheduler.step(valid_loss)
             if es.step(valid_loss):
                 print(f"Early Stopping activated on epoch #: {epoch}")
                 break

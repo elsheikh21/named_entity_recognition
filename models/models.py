@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torchcrf import CRF
 from tqdm.auto import tqdm
+from typing import List
 
 
 class BaselineModel(nn.Module):
@@ -35,16 +36,25 @@ class BaselineModel(nn.Module):
         # [Samples_Num, Seq_Len]
         return logits
 
-    def predict_sentences(self, test_dataset):
-        preds = []
-        for _, sample in tqdm(enumerate(test_dataset)):
-            inputs, labels = sample['inputs'], sample['outputs']
-            logits = self(inputs)
+    def save_checkpoint(self, model_path):
+        torch.save(self, model_path)
+        model_checkpoint = model_path.replace('.pt', '.pth')
+        torch.save(self.state_dict(), model_checkpoint)
+
+    def load_model(self, path):
+        state_dict = torch.load(path)
+        self.load_state_dict(state_dict)
+
+    def predict_sentences(self, tokens: List[List[str]], words2idx, idx2label):
+        predictions_lst = []
+        for inputs in tqdm(tokens):
+            inputs = torch.LongTensor([words2idx.get(word, 1) for word in inputs]).unsqueeze_(0).to('cuda')
+            logits = self.predict(inputs)
             predictions = torch.argmax(logits, -1).view(-1)
             valid_indices = predictions != 0
             predictions_ = predictions[valid_indices]
-            preds.append(predictions_)
-        return preds
+            predictions_lst.append([idx2label.get(tag) for tag in predictions_[0]])
+        return predictions_lst
 
 
 class CRF_Model(nn.Module):
@@ -71,6 +81,7 @@ class CRF_Model(nn.Module):
     def forward(self, x):
         # [Samples_Num, Seq_Len]
         embeddings = self.word_embedding(x)
+        embeddings = self.dropout(embeddings)
         # [Samples_Num, Seq_Len]
         o, _ = self.lstm(embeddings)
         # [Samples_Num, Seq_Len, Tags_Num]
@@ -97,14 +108,10 @@ class CRF_Model(nn.Module):
         state_dict = torch.load(path)
         self.load_state_dict(state_dict)
 
-    def predict_sentences(self, test_dataset):
+    def predict_sentences(self, tokens, words2idx, idx2label):
         predictions_lst = []
-        for _, sample in tqdm(enumerate(test_dataset)):
-            inputs, labels = sample['inputs'], sample['outputs']
-            logits = self.predict(inputs)
-            logits = torch.LongTensor(logits).to('cuda').view(-1)
-            predictions = torch.argmax(logits, -1).view(-1)
-            valid_indices = predictions != 0
-            predictions_ = predictions[valid_indices]
-            predictions_lst.append(predictions_)
+        for inputs in tqdm(tokens):
+            inputs = torch.LongTensor([words2idx.get(word, 1) for word in inputs]).unsqueeze_(0).to('cuda')
+            predictions = self.predict(inputs)
+            predictions_lst.append([idx2label.get(tag) for tag in predictions[0]])
         return predictions_lst
