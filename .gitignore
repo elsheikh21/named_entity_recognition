@@ -130,6 +130,6 @@ dmypy.json
 
 # PyCharm IDE
 .idea/
-runs/
+runs/*
 
 resources/wiki.en.vec
