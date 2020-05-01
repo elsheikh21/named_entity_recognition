@@ -1,15 +1,15 @@
-from os.path import join
 from os import getcwd
+from os.path import join
 
 from torch.nn import CrossEntropyLoss
-from torch.optim import Adam, SGD
+from torch.optim import Adam
 from torch.utils.data import DataLoader
 
-from utilities import configure_workspace, load_pretrained_embeddings
 from data_loader import TSVDatasetParser
-from models import HyperParameters, BaselineModel
 from evaluator import Evaluator
+from models import HyperParameters, BaselineModel
 from training import Trainer
+from utilities import configure_workspace, load_pretrained_embeddings
 
 
 def prepare_data(crf_model):
@@ -71,5 +71,5 @@ if __name__ == '__main__':
     save_to_ = join(RESOURCES_PATH, f"{model.name}_model.pt")
     trainer.train(train_dataset_, dev_dataset_, epochs=1, save_to=save_to_)
 
-    evaluator = Evaluator(model, test_dataset_, train_dataset.idx2label)
-    evaluator.check_performance()
+    evaluator = Evaluator(model, test_dataset_, crf_model)
+    evaluator.check_performance(train_dataset.idx2label)

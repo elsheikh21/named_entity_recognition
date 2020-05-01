@@ -133,3 +133,7 @@ dmypy.json
 runs/*
 
 resources/wiki.en.vec
+resources/CRF_BiLSTM_confusion_matrix.png
+resources/CRF_BiLSTM_model.pt
+resources/CRF_BiLSTM_model.pth
+runs/
