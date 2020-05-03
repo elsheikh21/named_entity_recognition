@@ -7,3 +7,4 @@ seaborn~=0.10.0
 scikit-learn~=0.22.2.post1
 livelossplot~=0.5.0
 tensorboardx
+pytorch-crf

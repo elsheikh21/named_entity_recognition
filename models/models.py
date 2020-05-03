@@ -9,6 +9,7 @@ class BaselineModel(nn.Module):
     def __init__(self, hparams):
         super(BaselineModel, self).__init__()
         self.name = 'BiLSTM'
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.word_embedding = nn.Embedding(
             hparams.vocab_size, hparams.embedding_dim)
         if hparams.embeddings is not None:
@@ -46,9 +47,10 @@ class BaselineModel(nn.Module):
         self.load_state_dict(state_dict)
 
     def predict_sentences(self, tokens: List[List[str]], words2idx, idx2label):
+        self.eval()
         predictions_lst = []
         for inputs in tqdm(tokens):
-            inputs = torch.LongTensor([words2idx.get(word, 1) for word in inputs]).unsqueeze_(0).to('cuda')
+            inputs = torch.LongTensor([words2idx.get(word, 1) for word in inputs]).unsqueeze(0).to(self.device)
             logits = self.predict(inputs)
             predictions = torch.argmax(logits, -1).view(-1)
             valid_indices = predictions != 0
@@ -61,6 +63,7 @@ class CRF_Model(nn.Module):
     def __init__(self, hparams):
         super(CRF_Model, self).__init__()
         self.name = 'CRF_BiLSTM'
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.word_embedding = nn.Embedding(
             hparams.vocab_size, hparams.embedding_dim)
         if hparams.embeddings is not None:
@@ -105,13 +108,19 @@ class CRF_Model(nn.Module):
         torch.save(self.state_dict(), model_checkpoint)
 
     def load_model(self, path):
-        state_dict = torch.load(path)
+        if self.device == 'cuda':
+            state_dict = torch.load(path)
+        else:
+            state_dict = torch.load(path, map_location=self.device)
         self.load_state_dict(state_dict)
+        for parameter in self.parameters():
+            parameter.requires_grad = False
 
     def predict_sentences(self, tokens, words2idx, idx2label):
+        self.eval()
         predictions_lst = []
         for inputs in tqdm(tokens):
-            inputs = torch.LongTensor([words2idx.get(word, 1) for word in inputs]).unsqueeze_(0).to('cuda')
+            inputs = torch.LongTensor([words2idx.get(word, 1) for word in inputs]).unsqueeze(0).to(self.device)
             predictions = self.predict(inputs)
             predictions_lst.append([idx2label.get(tag) for tag in predictions[0]])
         return predictions_lst

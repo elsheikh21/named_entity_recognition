@@ -12,6 +12,7 @@ from tqdm.auto import tqdm
 class Evaluator:
     def __init__(self, model, test_dataset, is_crf):
         self.model = model
+        self.model.eval()
         self.test_dataset = test_dataset
         self.is_crf = is_crf
         self.micro_scores = None

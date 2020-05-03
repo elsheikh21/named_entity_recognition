@@ -63,7 +63,7 @@ class TSVDatasetParser(Dataset):
 
     def create_vocabulary(self, is_crf):
         all_words = [item for sublist in self.data_x for item in sublist]
-        unigrams = list(set(all_words))
+        unigrams = sorted(list(set(all_words)))
         if is_crf:
             word2idx = {'<PAD>': 0, '<UNK>': 1, '<BOS>': 2, '<EOS>': 3}
             start_ = 4
