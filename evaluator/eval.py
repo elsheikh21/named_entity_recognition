@@ -5,8 +5,14 @@ import pandas as pd
 import seaborn as sn
 import torch
 from sklearn.metrics import (confusion_matrix, precision_score,
-                             precision_recall_fscore_support)
+                             precision_recall_fscore_support,
+                             recall_score, f1_score)
 from tqdm.auto import tqdm
+from typing import List, Any
+
+
+def flat_list(l: List[List[Any]]) -> List[Any]:
+    return [_e for e in l for _e in e]
 
 
 class Evaluator:
@@ -23,11 +29,13 @@ class Evaluator:
     def compute_scores(self):
         all_predictions = list()
         all_labels = list()
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         for step, samples in tqdm(enumerate(self.test_dataset), desc="Predicting batches of data"):
             inputs, labels = samples['inputs'], samples['outputs']
             if self.is_crf:
                 predictions = self.model.predict(inputs)
-                predictions = torch.LongTensor(predictions).to('cuda').view(-1)
+                # print(flat_list(predictions))
+                predictions = torch.LongTensor(predictions).to(device).view(-1)
             else:
                 predictions = self.model(inputs)
                 predictions = torch.argmax(predictions, -1).view(-1)
@@ -50,6 +58,12 @@ class Evaluator:
 
         self.confusion_matrix = confusion_matrix(all_labels, all_predictions,
                                                  normalize='true')
+        p = precision_score(all_labels, all_predictions, average='macro')
+        r = recall_score(all_labels, all_predictions, average='macro')
+        f = f1_score(all_labels, all_predictions, average='macro')
+        print("=" * 30)
+        print(f'Macro Precision: {p:0.4f}, Macro Recall: {r:0.4f}, Macro F1 Score: {f:0.4f}')
+
 
     def pprint_confusion_matrix(self, conf_matrix):
         df_cm = pd.DataFrame(conf_matrix)

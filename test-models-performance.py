@@ -35,7 +35,6 @@ if __name__ == "__main__":
     model = CRF_Model(hp).to(train_dataset.get_device) if CRF_MODEL else BaselineModel(hp).to(train_dataset.get_device)
     model.load_model(model_path)
 
-    # TODO: UNDO EVALUATOR CHANGES
     evaluator = Evaluator(model, test_dataset_, CRF_MODEL)
     evaluator.check_performance(idx2label)
     tokens = test_dataset.data_x

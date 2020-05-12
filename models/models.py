@@ -49,7 +49,8 @@ class BaselineModel(nn.Module):
     def predict_sentences(self, tokens: List[List[str]], words2idx, idx2label):
         self.eval()
         predictions_lst = []
-        for inputs in tqdm(tokens):
+        tokens_ = [[_x.lower() for _x in x] for x in tokens]
+        for inputs in tqdm(tokens_):
             inputs = torch.LongTensor([words2idx.get(word, 1) for word in inputs]).unsqueeze(0).to(self.device)
             logits = self.predict(inputs)
             predictions = torch.argmax(logits, -1).view(-1)
@@ -119,7 +120,8 @@ class CRF_Model(nn.Module):
     def predict_sentences(self, tokens, words2idx, idx2label):
         self.eval()
         predictions_lst = []
-        for inputs in tqdm(tokens):
+        tokens_ = [[_x.lower() for _x in x] for x in tokens]
+        for inputs in tqdm(tokens_):
             inputs = torch.LongTensor([words2idx.get(word, 1) for word in inputs]).unsqueeze(0).to(self.device)
             predictions = self.predict(inputs)
             predictions_lst.append([idx2label.get(tag) for tag in predictions[0]])
