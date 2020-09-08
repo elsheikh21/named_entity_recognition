@@ -139,3 +139,4 @@ resources/CRF_BiLSTM_model.pth
 runs/
 .ipynb_checkpoints/
 data/*.tsv
+logs/
