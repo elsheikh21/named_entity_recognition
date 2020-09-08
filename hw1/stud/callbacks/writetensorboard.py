@@ -2,7 +2,11 @@ import importlib
 import os
 import warnings
 
+<<<<<<< Updated upstream:callbacks/writetensorboard.py
 from utilities import ensure_dir
+=======
+from stud.utilities import ensure_dir
+>>>>>>> Stashed changes:hw1/stud/callbacks/writetensorboard.py
 
 
 class WriterTensorboardX():

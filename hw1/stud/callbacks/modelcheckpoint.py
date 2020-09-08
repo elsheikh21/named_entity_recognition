@@ -1,9 +1,18 @@
 import os
 import numpy as np
 import torch
+<<<<<<< Updated upstream:callbacks/modelcheckpoint.py
 from utilities import ensure_dir
 
 class ModelCheckpoint(object):
+=======
+from stud.utilities import ensure_dir
+
+class ModelCheckpoint(object):
+    """
+    Defines ModelCheckpoint callback
+    """
+>>>>>>> Stashed changes:hw1/stud/callbacks/modelcheckpoint.py
 
     def __init__(self, checkpoint_dir,
                  monitor,

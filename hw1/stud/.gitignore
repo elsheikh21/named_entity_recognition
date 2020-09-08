@@ -137,5 +137,3 @@ resources/CRF_BiLSTM_confusion_matrix.png
 resources/CRF_BiLSTM_model.pt
 resources/CRF_BiLSTM_model.pth
 runs/
-.ipynb_checkpoints/
-data/*.tsv

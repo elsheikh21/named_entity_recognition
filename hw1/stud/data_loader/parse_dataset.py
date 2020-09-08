@@ -1,8 +1,16 @@
+<<<<<<< Updated upstream:data_loader/parse_dataset.py
+=======
+import os
+>>>>>>> Stashed changes:hw1/stud/data_loader/parse_dataset.py
 import matplotlib.pyplot as plt
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
+<<<<<<< Updated upstream:data_loader/parse_dataset.py
+=======
+from stud.utilities import load_pickle
+>>>>>>> Stashed changes:hw1/stud/data_loader/parse_dataset.py
 
 
 def sentences_frequency_len(data_x, plot=False):
@@ -22,6 +30,7 @@ def sentences_frequency_len(data_x, plot=False):
 
 
 class TSVDatasetParser(Dataset):
+<<<<<<< Updated upstream:data_loader/parse_dataset.py
     def __init__(self, file_path, verbose, max_len=173, is_crf=False):
         self._file_path = file_path
         self.max_len = max_len
@@ -30,6 +39,16 @@ class TSVDatasetParser(Dataset):
 
         self.data_x, self.data_y = self.parse_dataset()
         self.word2idx, self.idx2word = self.create_vocabulary(is_crf)
+=======
+    def __init__(self, file_path, verbose=False, is_crf=False):
+        self._file_path = file_path
+        self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self._verbose = verbose
+
+        self.data_x, self.pos_y, self.data_y = self.parse_dataset()
+
+        self.word2idx, self.idx2word, self.pos2idx, self.idx2pos = self.create_vocabulary(is_crf)
+>>>>>>> Stashed changes:hw1/stud/data_loader/parse_dataset.py
 
         self.labels2idx = {'<PAD>': 0, 'PER': 1, 'ORG': 2, 'LOC': 3, 'O': 4}
         self.idx2label = {key: val for key, val in enumerate(self.labels2idx)}
@@ -44,6 +63,7 @@ class TSVDatasetParser(Dataset):
     def parse_dataset(self):
         with open(self._file_path, encoding='utf-8', mode='r') as file_:
             lines = file_.read().splitlines()
+<<<<<<< Updated upstream:data_loader/parse_dataset.py
         data_x, data_y = [], []
         sentence_tags = []
         for line in tqdm(lines, desc='Parsing Data'):
@@ -62,10 +82,36 @@ class TSVDatasetParser(Dataset):
         return data_x, data_y
 
     def create_vocabulary(self, is_crf):
+=======
+
+        data_x, pos_y, data_y = [], [], []
+        sentence_tags = []
+        for line in tqdm(lines, desc='Parsing Data', leave=False):
+            sentence_x = []
+            if line == '':
+                if sentence_tags:
+                    data_y.append(sentence_tags)
+                    sentence_tags = []
+            elif line[0] == '#':
+                sentence = line.replace('# ', '')
+                data_x.append([word.lower() for word in (sentence.split())])
+                pos_y.append([pos_tag for _, pos_tag in nltk.pos_tag(data_x[-1])])
+                if sentence_tags:
+                    data_y.append(sentence_tags)
+                    sentence_tags = []
+            elif line[0].isdigit():
+                sentence_tags.append(line.split('\t')[-1])
+        return data_x, pos_y, data_y
+
+    def create_vocabulary(self, is_crf):
+        all_pos_tags = [item for sublist in self.pos_y for item in sublist]
+        pos_unigrams = sorted(list(set(all_pos_tags)))
+>>>>>>> Stashed changes:hw1/stud/data_loader/parse_dataset.py
         all_words = [item for sublist in self.data_x for item in sublist]
         unigrams = sorted(list(set(all_words)))
         if is_crf:
             word2idx = {'<PAD>': 0, '<UNK>': 1, '<BOS>': 2, '<EOS>': 3}
+<<<<<<< Updated upstream:data_loader/parse_dataset.py
             start_ = 4
         else:
             word2idx = {'<PAD>': 0, '<UNK>': 1}
@@ -94,6 +140,27 @@ class TSVDatasetParser(Dataset):
         else:
             for i in tqdm(range(len(data_x_stoi)), desc="Indexing dataset"):
                 self.encoded_data.append({'inputs': data_x_stoi[i], 'outputs': data_y_stoi[i]})
+=======
+            pos2idx = {'<PAD>': 0, '<UNK>': 1, '<BOS>': 2, '<EOS>': 3}
+            start_ = 4
+        else:
+            word2idx = {'<PAD>': 0, '<UNK>': 1}
+            pos2idx = {'<PAD>': 0, '<UNK>': 1}
+            start_ = 2
+        word2idx.update({val: key for key, val in enumerate(unigrams, start=start_)})
+        idx2word = {key: val for key, val in enumerate(word2idx)}
+        pos2idx.update({val: key for key, val in enumerate(pos_unigrams, start=start_)})
+        idx2pos = {key: val for key, val in enumerate(pos2idx)}
+        return word2idx, idx2word, pos2idx, idx2pos
+
+    def encode_dataset(self, word2idx, labels2idx, pos2idx):
+        self.encoded_list = []
+        for sentence, labels, pos_sentence in tqdm(zip(self.data_x, self.data_y, self.pos_y), desc='Encoding data set',
+                                                   leave=False):
+            self.encoded_data.append({"inputs": torch.LongTensor([word2idx.get(word, 1) for word in sentence]),
+                                      "outputs": torch.LongTensor([labels2idx.get(tag) for tag in labels]),
+                                      "pos": torch.LongTensor([pos2idx.get(tag, 1) for tag in pos_sentence])})
+>>>>>>> Stashed changes:hw1/stud/data_loader/parse_dataset.py
 
     @staticmethod
     def decode_predictions(logits, idx2label):
@@ -103,6 +170,15 @@ class TSVDatasetParser(Dataset):
             predictions.append([idx2label.get(i) for i in indices])
         return predictions
 
+<<<<<<< Updated upstream:data_loader/parse_dataset.py
+=======
+    @staticmethod
+    def pad_batch(batch):
+        return {"inputs": pad_sequence([sample["inputs"] for sample in batch], batch_first=True),
+                "outputs": pad_sequence([sample["outputs"] for sample in batch], batch_first=True),
+                "pos": pad_sequence([sample["pos"] for sample in batch], batch_first=True)}
+
+>>>>>>> Stashed changes:hw1/stud/data_loader/parse_dataset.py
     def get_element(self, idx):
         return self.data_x[idx], self.data_y[idx]
 
@@ -114,7 +190,10 @@ class TSVDatasetParser(Dataset):
             raise RuntimeError("Dataset is not indexed yet.\
                                 To fetch raw elements, use get_element(idx)")
         return self.encoded_data[idx]
+<<<<<<< Updated upstream:data_loader/parse_dataset.py
 
     @property
     def get_device(self):
         return self._device
+=======
+>>>>>>> Stashed changes:hw1/stud/data_loader/parse_dataset.py

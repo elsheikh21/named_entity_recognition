@@ -4,9 +4,9 @@ from os import path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from utilities import ensure_dir
+from stud.utilities import ensure_dir
 
-plt.switch_backend('agg')
+plt.switch_backend('TkAgg')
 
 
 class TrainingMonitor:

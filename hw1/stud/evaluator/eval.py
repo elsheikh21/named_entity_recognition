@@ -17,8 +17,14 @@ def flat_list(l: List[List[Any]]) -> List[Any]:
 
 class Evaluator:
     def __init__(self, model, test_dataset, is_crf):
+        """
+        Responsible for check model performance metrics, plotting of confusion matrix
+        Args:
+            model: nn.Module
+            test_dataset: TSVDatasetParser Object
+            is_crf: Flag, to imply approach for predictions
+        """
         self.model = model
-        self.model.eval()
         self.test_dataset = test_dataset
         self.is_crf = is_crf
         self.micro_scores = None
@@ -27,6 +33,12 @@ class Evaluator:
         self.confusion_matrix = None
 
     def compute_scores(self):
+        """
+        Fetches model's predictions, then computes performance by measuring macro and micro different metrics
+        (Precision, Recall, F1Score), as well as, confusion matrix,
+        Returns:
+
+        """
         all_predictions = list()
         all_labels = list()
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -46,14 +58,14 @@ class Evaluator:
             all_predictions.extend(valid_predictions.tolist())
             all_labels.extend(valid_labels.tolist())
         # global precision. Does take class imbalance into account.
-        self.micro_scores = precision_recall_fscore_support(all_labels, all_predictions,
+        self.micro_scores = precision_recall_fscore_support(all_labels, all_predictions, zero_division=0,
                                                             average="micro")
 
         # precision per class and arithmetic average of them. Does not take into account class imbalance.
-        self.macro_scores = precision_recall_fscore_support(all_labels, all_predictions,
+        self.macro_scores = precision_recall_fscore_support(all_labels, all_predictions, zero_division=0,
                                                             average="macro")
 
-        self.class_scores = precision_score(all_labels, all_predictions,
+        self.class_scores = precision_score(all_labels, all_predictions, zero_division=0,
                                             average=None)
 
         self.confusion_matrix = confusion_matrix(all_labels, all_predictions,
@@ -66,15 +78,36 @@ class Evaluator:
 
 
     def pprint_confusion_matrix(self, conf_matrix):
+        """
+        Plots Confusion matrix heat map
+        Args:
+            conf_matrix:
+
+        Returns:
+            None
+        """
         df_cm = pd.DataFrame(conf_matrix)
-        plt.figure(figsize=(10, 7))
-        sn.set(font_scale=1.4)  # for label size
-        sn.heatmap(df_cm, annot=True, annot_kws={"size": 16})  # font size
-        save_to = os.path.join(os.getcwd(), "resources", f"{self.model.name}_confusion_matrix.png")
-        plt.savefig(save_to)
+        fig = plt.figure(figsize=(10, 7))
+        axes = fig.add_subplot(111)
+        sn.set(font_scale=1.5)  # for label size
+        sn.heatmap(df_cm, annot=True, annot_kws={"size": 16}, ax=axes)  # font size
+        axes.set_xlabel('Predicted labels')
+        axes.set_ylabel('Labels')
+        axes.set_title('Confusion Matrix')
+        axes.xaxis.set_ticklabels(['PER', 'ORG', 'LOC', 'O'])
+        axes.yaxis.set_ticklabels(['PER', 'ORG', 'LOC', 'O'])
+        plt.savefig('./best_model.png')
         plt.show()
 
     def check_performance(self, idx2label):
+        """
+        invoke compute scores, then print results
+        Args:
+            idx2label: dict
+
+        Returns:
+
+        """
         self.compute_scores()
         precision_, recall_, f1score_, _ = self.macro_scores
         print("=" * 30)

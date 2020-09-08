@@ -1,3 +1,4 @@
+import os
 import logging
 from os import getcwd
 from os.path import join
@@ -12,15 +13,29 @@ from data_loader import TSVDatasetParser
 from evaluator import Evaluator
 from models import HyperParameters, BaselineModel, CRF_Model
 from training import Trainer, CRF_Trainer
-from utilities import configure_workspace, load_pretrained_embeddings, torch_summarize
+from utilities import configure_workspace, load_pretrained_embeddings, torch_summarize, load_pickle
+
+"""
+Was implemented in order to test and run CRF Models
+"""
 
 
-def prepare_data(crf_model):
-    DATA_PATH = join(getcwd(), 'Data')
+def pad_per_batch(batch):
+    data_x, data_y = [], []
+    for item in batch:
+        data_x.append(item.get('inputs'))
+        data_y.append(item.get('outputs'))
+    data_x = pad_sequence(data_x, batch_first=True, padding_value=0)
+    data_y = pad_sequence(data_y, batch_first=True, padding_value=0)
+    return data_x.to('cuda'), data_y.to('cuda')
+
+
+def prepare_data(crf_model, word2idxpath=None):
+    DATA_PATH = join(getcwd(), 'data')
 
     print("==========Training Dataset==========")
     file_path_ = join(DATA_PATH, 'train.tsv')
-    training_set = TSVDatasetParser(file_path_, verbose=False, max_len=80, is_crf=crf_model)
+    training_set = TSVDatasetParser(file_path_, verbose=False, max_len=80, is_crf=crf_model, word2idx_path=word2idxpath)
     training_set.encode_dataset(training_set.word2idx, training_set.labels2idx)
 
     print("==========Validation Dataset==========")
@@ -56,7 +71,7 @@ if __name__ == '__main__':
                          pretrained_embeddings,
                          batch_size)
 
-    # train_dataset_ = DataLoader(dataset=train_dataset, batch_size=batch_size, collate_fn=TSVDatasetParser.pad_per_batch)
+    # train_dataset_ = DataLoader(dataset=train_dataset, batch_size=batch_size, collate_fn=pad_per_batch)
     train_dataset_ = DataLoader(dataset=train_dataset, batch_size=batch_size)
     dev_dataset_ = DataLoader(dataset=dev_dataset, batch_size=batch_size)
     test_dataset_ = DataLoader(dataset=test_dataset, batch_size=batch_size)
@@ -79,7 +94,7 @@ if __name__ == '__main__':
         model = CRF_Model(hp).to(train_dataset.get_device)
         print(f'========== Model Summary ==========\n{torch_summarize(model)}')
         model_num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print(f"Num of Parameters:  {model_num_params:6d}")
+        print(f"Num of Parameters:  {model_num_params}")
 
         log_path = join(getcwd(), 'runs', hp.model_name)
         writer_ = WriterTensorboardX(log_path, logger=logging, enable=True)

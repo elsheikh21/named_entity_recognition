@@ -2,6 +2,12 @@ import numpy as np
 
 
 class EarlyStopping(object):
+<<<<<<< Updated upstream:callbacks/earlystopping.py
+=======
+    """
+    Defines Early stopping callback
+    """
+>>>>>>> Stashed changes:hw1/stud/callbacks/earlystopping.py
     def __init__(self, mode='min', min_delta=0, patience=10, percentage=False):
         self.mode = mode
         self.min_delta = min_delta

@@ -1,10 +1,12 @@
-import pickle
-import os
-import numpy as np
-import random
-import torch
 import logging
+import os
+import pickle
+import random
 import warnings
+
+import numpy as np
+import torch
+import nltk
 
 
 def configure_workspace(seed):
@@ -13,11 +15,12 @@ def configure_workspace(seed):
     :param seed: int
     :return: None
     """
-    warnings.filterwarnings('ignore', category=FutureWarning)
+    nltk.download('averaged_perceptron_tagger', quiet=True)
     random.seed(seed)
     np.random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
     logging.basicConfig(format="%(levelname)s - %(asctime)s: %(message)s",
@@ -35,5 +38,8 @@ def load_pickle(load_from):
 
 
 def ensure_dir(path):
+    """
+    Ensures if a directory exists, else creates it
+    """
     if not os.path.exists(path):
         os.makedirs(path)
